@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Prediction Result</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='result.css') }}">
+</head>
+
+<body>
+  <div class="container">
+    <h2>Prediction Result</h2>
+    <p><strong>Prediction:</strong> {{ prediction }}</p>
+    <p><strong>Model Confidence:</strong> {{ confidence }}%</p>
+
+    <img src="{{ image_path }}" alt="Uploaded Image">
+
+    <h3>Model Performance Summary</h3>
+    <table>
+      <tr>
+        <th>Model</th>
+        <th>Accuracy (%)</th>
+        <th>Computational Cost (GFLOPs)</th>
+        <th>Suitability</th>
+      </tr>
+      {% for model, details in model_info.items() %}
+      <tr>
+        <td>{{ model }}</td>
+        <td>{{ details['Accuracy'] }}</td>
+        <td>{{ details['GFLOPs'] }}</td>
+        <td>{{ details['Suitability'] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <div class="report">
+      <h3>AI-Generated Medical Report:</h3>
+      <p>{{ report }}</p>
+    </div>
+  </div>
+
+  
+
+</body>
+
+</html>
