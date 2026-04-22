@@ -25,7 +25,7 @@ img_to_array = None
 
 
 def get_mobilenet_model():
-    """Load the prediction model only when the first request needs it."""
+    """Load the original trained MobileNetV2 model only when needed."""
     global mobilenet_model, load_img, img_to_array
 
     if mobilenet_model is not None:
@@ -38,25 +38,25 @@ def get_mobilenet_model():
     from tensorflow.keras.applications import MobileNetV2
 
     base_model = MobileNetV2(
-        weights=None,
+        weights="imagenet",
         include_top=False,
         input_shape=(224, 224, 3),
         pooling=None,
     )
-    for layer in base_model.layers:
+    base_model.trainable = True
+    for layer in base_model.layers[:100]:
         layer.trainable = False
-    base_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
 
-    inputs = layers.Input(shape=(224, 224, 3), name="input_layer_1")
+    inputs = layers.Input(shape=(224, 224, 3))
     x = base_model(inputs, training=False)
-    x = layers.GlobalAveragePooling2D(name="global_average_pooling2d")(x)
-    x = layers.Dropout(0.3, name="dropout")(x)
-    x = layers.Dense(128, activation="relu", name="dense")(x)
-    x = layers.Dropout(0.2, name="dropout_1")(x)
-    outputs = layers.Dense(1, activation="sigmoid", name="dense_1")(x)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dropout(0.3)(x)
+    x = layers.Dense(128, activation="relu")(x)
+    x = layers.Dropout(0.2)(x)
+    outputs = layers.Dense(1, activation="sigmoid")(x)
 
-    mobilenet_model = Model(inputs=inputs, outputs=outputs, name="psoriasis_mobilenetv2")
-    mobilenet_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
+    mobilenet_model = Model(inputs=inputs, outputs=outputs)
+    mobilenet_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=False)
     mobilenet_model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
 
     load_img = keras_load_img
