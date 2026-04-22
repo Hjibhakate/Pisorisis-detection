@@ -24,7 +24,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ==================== Step 4: Load MobileNetV2 Model ====================
 mobilenet_model_path = os.path.join(MODEL_DIR, "pisoriasis_mobilenetv2_final.h5")
 print("Loading MobileNetV2 model...")
-mobilenet_model = load_model(mobilenet_model_path)
+mobilenet_model = load_model(mobilenet_model_path, compile=False)
 mobilenet_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 print("MobileNetV2 loaded successfully!")
 
