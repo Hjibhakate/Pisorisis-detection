@@ -5,12 +5,6 @@ import numpy as np
 from werkzeug.utils import secure_filename
 from uuid import uuid4
 
-# TensorFlow / Keras for image model
-from tensorflow.keras.models import load_model
-from tensorflow.keras.utils import load_img, img_to_array
-from tensorflow.keras import layers, Model
-from tensorflow.keras.applications import MobileNetV2
-
 # ==================== Step 2: Flask Setup ====================
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
@@ -23,30 +17,53 @@ UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads")
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ==================== Step 4: Load MobileNetV2 Model ====================
+# ==================== Step 4: Lazy Model Setup ====================
 mobilenet_model_path = os.path.join(MODEL_DIR, "pisoriasis_mobilenetv2_final.h5")
-print("Loading MobileNetV2 model...")
-base_model = MobileNetV2(
-    weights=None,
-    include_top=False,
-    input_shape=(224, 224, 3),
-    pooling=None,
-)
-for layer in base_model.layers:
-    layer.trainable = False
-base_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
+mobilenet_model = None
+load_img = None
+img_to_array = None
 
-inputs = layers.Input(shape=(224, 224, 3), name="input_layer_1")
-x = base_model(inputs, training=False)
-x = layers.GlobalAveragePooling2D(name="global_average_pooling2d")(x)
-x = layers.Dropout(0.3, name="dropout")(x)
-x = layers.Dense(128, activation="relu", name="dense")(x)
-x = layers.Dropout(0.2, name="dropout_1")(x)
-outputs = layers.Dense(1, activation="sigmoid", name="dense_1")(x)
-mobilenet_model = Model(inputs=inputs, outputs=outputs, name="psoriasis_mobilenetv2")
-mobilenet_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
-mobilenet_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-print("MobileNetV2 loaded successfully!")
+
+def get_mobilenet_model():
+    """Load the prediction model only when the first request needs it."""
+    global mobilenet_model, load_img, img_to_array
+
+    if mobilenet_model is not None:
+        return mobilenet_model
+
+    print("Loading MobileNetV2 model...")
+
+    from tensorflow.keras.utils import load_img as keras_load_img, img_to_array as keras_img_to_array
+    from tensorflow.keras import layers, Model
+    from tensorflow.keras.applications import MobileNetV2
+
+    base_model = MobileNetV2(
+        weights=None,
+        include_top=False,
+        input_shape=(224, 224, 3),
+        pooling=None,
+    )
+    for layer in base_model.layers:
+        layer.trainable = False
+    base_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
+
+    inputs = layers.Input(shape=(224, 224, 3), name="input_layer_1")
+    x = base_model(inputs, training=False)
+    x = layers.GlobalAveragePooling2D(name="global_average_pooling2d")(x)
+    x = layers.Dropout(0.3, name="dropout")(x)
+    x = layers.Dense(128, activation="relu", name="dense")(x)
+    x = layers.Dropout(0.2, name="dropout_1")(x)
+    outputs = layers.Dense(1, activation="sigmoid", name="dense_1")(x)
+
+    mobilenet_model = Model(inputs=inputs, outputs=outputs, name="psoriasis_mobilenetv2")
+    mobilenet_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
+    mobilenet_model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+
+    load_img = keras_load_img
+    img_to_array = keras_img_to_array
+
+    print("MobileNetV2 loaded successfully!")
+    return mobilenet_model
 
 # ==================== Step 5: Lightweight Medical Report Setup ====================
 print("Loading built-in medical report generator...")
@@ -68,12 +85,13 @@ model_info = {
 
 def predict_image(img_path):
     """Predict whether the skin image shows Psoriasis or Normal using MobileNetV2."""
+    model = get_mobilenet_model()
     img = load_img(img_path, target_size=(224, 224))
     img_array = img_to_array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
     # Get raw prediction probability
-    prob = mobilenet_model.predict(img_array)[0][0]
+    prob = model.predict(img_array)[0][0]
 
     # Confidence calculation
     confidence = round(float(prob * 100), 2) if prob > 0.5 else round(float((1 - prob) * 100), 2)
