@@ -8,6 +8,8 @@ from uuid import uuid4
 # TensorFlow / Keras for image model
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import load_img, img_to_array
+from tensorflow.keras import layers, Model
+from tensorflow.keras.applications import MobileNetV2
 
 # ==================== Step 2: Flask Setup ====================
 app = Flask(__name__)
@@ -24,44 +26,45 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ==================== Step 4: Load MobileNetV2 Model ====================
 mobilenet_model_path = os.path.join(MODEL_DIR, "pisoriasis_mobilenetv2_final.h5")
 print("Loading MobileNetV2 model...")
-mobilenet_model = load_model(mobilenet_model_path, compile=False)
+base_model = MobileNetV2(
+    weights=None,
+    include_top=False,
+    input_shape=(224, 224, 3),
+    pooling=None,
+)
+for layer in base_model.layers:
+    layer.trainable = False
+base_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
+
+inputs = layers.Input(shape=(224, 224, 3), name="input_layer_1")
+x = base_model(inputs, training=False)
+x = layers.GlobalAveragePooling2D(name="global_average_pooling2d")(x)
+x = layers.Dropout(0.3, name="dropout")(x)
+x = layers.Dense(128, activation="relu", name="dense")(x)
+x = layers.Dropout(0.2, name="dropout_1")(x)
+outputs = layers.Dense(1, activation="sigmoid", name="dense_1")(x)
+mobilenet_model = Model(inputs=inputs, outputs=outputs, name="psoriasis_mobilenetv2")
+mobilenet_model.load_weights(mobilenet_model_path, by_name=True, skip_mismatch=True)
 mobilenet_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 print("MobileNetV2 loaded successfully!")
 
-# ==================== Step 5: Load LSTM Model ====================
-lstm_model_path = os.path.join(MODEL_DIR, "lstm_model_final.h5")
-print("Loading LSTM model...")
-lstm_model = load_model(lstm_model_path, compile=False)
-print("LSTM model loaded successfully!")
-
-# Get LSTM expected input shape
-lstm_timesteps = lstm_model.input_shape[1]
-lstm_features = lstm_model.input_shape[2]
-print(f"LSTM expects input shape: (timesteps={lstm_timesteps}, features={lstm_features})")
-
-
-# ==================== Step 6: Lightweight Medical Report Setup ====================
+# ==================== Step 5: Lightweight Medical Report Setup ====================
 print("Loading built-in medical report generator...")
 print("Medical report generator ready!")
 
 
 
 
-# ==================== Step 7: Model Parameter Info ====================
+# ==================== Step 6: Model Parameter Info ====================
 model_info = {
     "MobileNetV2": {
         "Accuracy": 94.5,
         "GFLOPs": 0.3,
         "Suitability": "Lightweight, real-time image classification"
     },
-    "LSTM": {
-        "Accuracy": 91.8,
-        "GFLOPs": 0.8,
-        "Suitability": "Sequential dermatological pattern analysis"
-    }
 }
 
-# ==================== Step 8: Helper Functions ====================
+# ==================== Step 7: Helper Functions ====================
 
 def predict_image(img_path):
     """Predict whether the skin image shows Psoriasis or Normal using MobileNetV2."""
@@ -99,7 +102,7 @@ def generate_report(prediction):
         "or scaling continue, a dermatologist should still be consulted."
     )
 
-# ==================== Step 9: Flask Routes ====================
+# ==================== Step 8: Flask Routes ====================
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -121,14 +124,10 @@ def predict():
     # Step 9b: Image prediction + confidence
     prediction, confidence = predict_image(img_path)
 
-    # Step 9c: LSTM dummy prediction
-    sequence_input = np.random.rand(1, lstm_timesteps, lstm_features)
-    lstm_output = lstm_model.predict(sequence_input)
-
-    # Step 9d: Generate AI medical report
+    # Step 8c: Generate AI medical report
     report = generate_report(prediction)
 
-    # Step 9e: Render result page with model parameters and confidence
+    # Step 8d: Render result page with model parameters and confidence
     return render_template(
         'result.html',
         prediction=prediction,
@@ -138,6 +137,6 @@ def predict():
         model_info=model_info
     )
 
-# ==================== Step 10: Run Flask App ====================
+# ==================== Step 9: Run Flask App ====================
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
