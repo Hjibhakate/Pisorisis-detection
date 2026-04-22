@@ -9,8 +9,6 @@ from uuid import uuid4
 from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import load_img, img_to_array
 
-import torch  # Ensure PyTorch is installed
-
 # ==================== Step 2: Flask Setup ====================
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
@@ -45,15 +43,15 @@ print(f"LSTM expects input shape: (timesteps={lstm_timesteps}, features={lstm_fe
 # ==================== Step 6: Setup Hugging Face Medical LLM (DistilGPT2 + Medical Prompting) ====================
 print("🧠 Loading Hugging Face Medical LLM: DistilGPT2 (medical-prompted)...")
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, TFAutoModelForCausalLM
 
 # Load small GPT-style model for text generation
 tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
-medical_llm_model = AutoModelForCausalLM.from_pretrained("distilgpt2")
+medical_llm_model = TFAutoModelForCausalLM.from_pretrained("distilgpt2", from_pt=True)
 
 def generate_medical_text(prompt):
     """Generate detailed text using GPT-style model."""
-    inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = tokenizer(prompt, return_tensors="tf")
     outputs = medical_llm_model.generate(
         **inputs,
         max_new_tokens=200,
@@ -62,7 +60,7 @@ def generate_medical_text(prompt):
         do_sample=True,
         pad_token_id=tokenizer.eos_token_id
     )
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return tokenizer.decode(outputs[0].numpy(), skip_special_tokens=True)
 
 print("✅ Medical LLM (DistilGPT2) loaded successfully!")
 
@@ -104,7 +102,7 @@ def predict_image(img_path):
 
 def generate_report(prediction):
     """Generate extended medical explanation using GPT-style model."""
-    inputs = tokenizer(prediction, return_tensors="pt")
+    inputs = tokenizer(prediction, return_tensors="tf")
 
     outputs = medical_llm_model.generate(
         **inputs,
@@ -116,7 +114,7 @@ def generate_report(prediction):
         pad_token_id=tokenizer.eos_token_id
     )
 
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return tokenizer.decode(outputs[0].numpy(), skip_special_tokens=True)
 
 
 
