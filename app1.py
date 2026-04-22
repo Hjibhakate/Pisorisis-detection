@@ -40,29 +40,9 @@ lstm_features = lstm_model.input_shape[2]
 print(f"LSTM expects input shape: (timesteps={lstm_timesteps}, features={lstm_features})")
 
 
-# ==================== Step 6: Setup Hugging Face Medical LLM (DistilGPT2 + Medical Prompting) ====================
-print("🧠 Loading Hugging Face Medical LLM: DistilGPT2 (medical-prompted)...")
-
-from transformers import AutoTokenizer, TFAutoModelForCausalLM
-
-# Load small GPT-style model for text generation
-tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
-medical_llm_model = TFAutoModelForCausalLM.from_pretrained("distilgpt2", from_pt=True)
-
-def generate_medical_text(prompt):
-    """Generate detailed text using GPT-style model."""
-    inputs = tokenizer(prompt, return_tensors="tf")
-    outputs = medical_llm_model.generate(
-        **inputs,
-        max_new_tokens=200,
-        temperature=0.7,
-        top_p=0.9,
-        do_sample=True,
-        pad_token_id=tokenizer.eos_token_id
-    )
-    return tokenizer.decode(outputs[0].numpy(), skip_special_tokens=True)
-
-print("✅ Medical LLM (DistilGPT2) loaded successfully!")
+# ==================== Step 6: Lightweight Medical Report Setup ====================
+print("Loading built-in medical report generator...")
+print("Medical report generator ready!")
 
 
 
@@ -101,23 +81,23 @@ def predict_image(img_path):
     return label, confidence
 
 def generate_report(prediction):
-    """Generate extended medical explanation using GPT-style model."""
-    inputs = tokenizer(prediction, return_tensors="tf")
+    """Generate a lightweight explanatory report for the prediction result."""
+    if prediction == "Psoriasis":
+        return (
+            "The uploaded skin image was classified as Psoriasis by the image model. "
+            "Psoriasis is a chronic skin condition often associated with red, thick, "
+            "and scaly patches. This result is only a screening prediction from the model "
+            "and should not be treated as a final medical diagnosis. A dermatologist should "
+            "review the symptoms, medical history, and physical examination before any treatment decision."
+        )
 
-    outputs = medical_llm_model.generate(
-        **inputs,
-        max_new_tokens=600,   # 🧠 Increase for longer text (try 400–800)
-        temperature=0.8,      # Adds creativity
-        top_p=0.9,            # Keeps it coherent
-        repetition_penalty=1.2,  # Avoids repeating phrases
-        do_sample=True,
-        pad_token_id=tokenizer.eos_token_id
+    return (
+        "The uploaded skin image was classified as Normal by the image model. "
+        "This means the model did not detect psoriasis-like visual patterns strongly enough "
+        "in the uploaded image. This prediction is only an automated screening result and "
+        "does not replace professional medical evaluation. If symptoms such as itching, redness, "
+        "or scaling continue, a dermatologist should still be consulted."
     )
-
-    return tokenizer.decode(outputs[0].numpy(), skip_special_tokens=True)
-
-
-
 
 # ==================== Step 9: Flask Routes ====================
 @app.route('/')
